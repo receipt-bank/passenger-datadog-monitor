@@ -23,7 +23,7 @@ The `passenger-datadog-monitor` binary can be downloaded from the [releases area
 ### Building the binary
 You will first need to build the `passenger-datadog-monitor` executable using [Go](https://golang.org). You can download the source and dependencies, and build the binary by running:
 ```
-go get -v github.com/Sjeanpierre/passenger-datadog-monitor
+go get -v github.com/receipt-bank/passenger-datadog-monitor
 ```
 Once it completes, you should find your new `passenger-datadog-monitor` executable in your `$GOROOT/bin` directory.
 
