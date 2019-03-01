@@ -65,8 +65,14 @@ func summarizeStats(statsArray *[]int) Stats {
 	return processedStats
 }
 
-func retrievePassengerStats() (io.Reader, error) {
-	out, err := exec.Command("passenger-status", "--show=xml").Output()
+func retrievePassengerStats(container string) (io.Reader, error) {
+	var cmd *exec.Cmd
+	if container != "" {
+		cmd = exec.Command("docker", "exec", container, "passenger-status", "--show=xml")
+	} else {
+		cmd = exec.Command("passenger-status", "--show=xml")
+	}
+	out, err := cmd.Output()
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
@@ -89,9 +95,15 @@ func floatMyInt(value int) float64 {
 	return float64(value)
 }
 
-func getProcessThreadCount(pid int) (int, error) {
+func getProcessThreadCount(pid int, container string) (int, error) {
 	//ps -o nlwp --no-heading to get number of lightweight peoceses for given pid
-	out, err := exec.Command("ps", "--no-header", "-o", "nlwp", strconv.Itoa(pid)).Output()
+	var cmd *exec.Cmd
+	if container != "" {
+		cmd = exec.Command("docker", "exec", container, "ps", "--no-header", "-o", "nlwp", strconv.Itoa(pid))
+	} else {
+		cmd = exec.Command("ps", "--no-header", "-o", "nlwp", strconv.Itoa(pid))
+	}
+	out, err := cmd.Output()
 	if err != nil {
 		return 0, fmt.Errorf("encountered error issuing command to retrieve"+
 			" thread count from pid %d, error: %s", pid, err)
@@ -214,12 +226,12 @@ func chartProcessUse(passengerDetails *passengerStatus, DogStatsD *godspeed.Gods
 }
 
 //go through each process in the tree and get the per process thread count and per process last used time
-func processSystemThreadUsage(passengerDetails *passengerStatus) map[int]float64 {
+func processSystemThreadUsage(passengerDetails *passengerStatus, container string) map[int]float64 {
 	var processThreads = make(map[int]float64)
 	p := passengerDetails.Processes
 	for _, processDetails := range p {
 		//take the PID and do a thread count lookup using PS
-		tc, err := getProcessThreadCount(processDetails.PID)
+		tc, err := getProcessThreadCount(processDetails.PID, container)
 		if err != nil {
 			_ = err
 			//log.Printf("encountered error getting thread count %s", err)
@@ -261,8 +273,8 @@ func processPerThreadRequests(passengerDetails *passengerStatus) map[int]float64
 	return processPerThreadProcessed
 }
 
-func chartDiscreteMetrics(passengerDetails *passengerStatus, DogStatsD *godspeed.Godspeed) {
-	threadCountPerProcess := processSystemThreadUsage(passengerDetails)
+func chartDiscreteMetrics(passengerDetails *passengerStatus, DogStatsD *godspeed.Godspeed, container string) {
+	threadCountPerProcess := processSystemThreadUsage(passengerDetails, container)
 	threadMemoryUsages := processPerThreadMemoryUsage(passengerDetails)
 	threadIdletimes := processPerThreadIdleTime(passengerDetails)
 	threadProcessedCounts := processPerThreadRequests(passengerDetails)
@@ -317,8 +329,9 @@ func main() {
 			printOutput = true
 		}
 	}
+	container := os.Getenv("PASSENGER_DOCKER_CONTAINER")
 	for {
-		xmlData, err := retrievePassengerStats()
+		xmlData, err := retrievePassengerStats(container)
 		if err != nil {
 			log.Fatal("Error getting passenger data:", err)
 		}
@@ -339,7 +352,7 @@ func main() {
 			chartPoolUse(&PassengerStatusData, DogStatsD)
 			chartProcessUptime(&PassengerStatusData, DogStatsD)
 			chartProcessUse(&PassengerStatusData, DogStatsD)
-			chartDiscreteMetrics(&PassengerStatusData, DogStatsD)
+			chartDiscreteMetrics(&PassengerStatusData, DogStatsD, container)
 			_ = DogStatsD.Conn.Close()
 		}
 		time.Sleep(10 * time.Second)
