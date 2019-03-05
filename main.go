@@ -323,11 +323,28 @@ func chartDiscreteMetrics(passengerDetails *passengerStatus, DogStatsD *godspeed
 	}
 }
 
+func getPollInterval() (int, error) {
+	env := os.Getenv("PASSENGER_POLL_INTERVAL_SECONDS")
+	if env == "" {
+		env = "10"
+	}
+
+	poll_interval, err := strconv.Atoi(env)
+	if err != nil {
+		return 0, err
+	}
+	return poll_interval, nil
+}
+
 func main() {
 	if len(os.Args[1:]) > 0 {
 		if os.Args[1] == "print" {
 			printOutput = true
 		}
+	}
+	poll_interval, err := getPollInterval()
+	if err != nil {
+		log.Fatal("Error readint the poll interval:", err)
 	}
 	container := os.Getenv("PASSENGER_DOCKER_CONTAINER")
 	for {
@@ -355,6 +372,6 @@ func main() {
 			chartDiscreteMetrics(&PassengerStatusData, DogStatsD, container)
 			_ = DogStatsD.Conn.Close()
 		}
-		time.Sleep(10 * time.Second)
+		time.Sleep(time.Duration(poll_interval) * time.Second)
 	}
 }
