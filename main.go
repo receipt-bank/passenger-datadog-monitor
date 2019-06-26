@@ -150,16 +150,12 @@ func processUptime(passengerDetails *passengerStatus) Stats {
 }
 
 func processUse(passengerDetails *passengerStatus) int {
-	var totalUsed int
+	var totalSessions int = 0
 	processes := passengerDetails.Processes
-	periodStart := time.Now().Add(-(10 * time.Second))
 	for _, processStats := range processes {
-		lastUsedNano := time.Unix(0, int64(processStats.LastUsed*1000))
-		if lastUsedNano.After(periodStart) {
-			totalUsed += 1
-		}
+		totalSessions += processStats.CurrentSessions
 	}
-	return totalUsed
+	return totalSessions
 }
 
 func chartPendingRequest(passengerDetails *passengerStatus, DogStatsD *godspeed.Godspeed) {
